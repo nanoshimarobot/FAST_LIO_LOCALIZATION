@@ -1,5 +1,5 @@
 common:
-    lid_topic:  "/points2/decompressed"
+    lid_topic:  "/points2"
     imu_topic:  "/imu"
     time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
 
