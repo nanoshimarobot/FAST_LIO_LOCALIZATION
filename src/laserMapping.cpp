@@ -40,6 +40,10 @@
 #include <csignal>
 #include <unistd.h>
 #include <Python.h>
+#include <fstream>
+#include <iostream>
+#include <iomanip>
+#include <chrono>
 #include <so3_math.h>
 #include <ros/ros.h>
 #include <Eigen/Core>
@@ -135,6 +139,7 @@ nav_msgs::Odometry odomAftMapped;
 geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
 
+std::string traj_save_name;
 shared_ptr<Preprocess> p_pre(new Preprocess());
 shared_ptr<ImuProcess> p_imu(new ImuProcess());
 
@@ -761,6 +766,14 @@ int main(int argc, char** argv)
     path.header.stamp    = ros::Time::now();
     path.header.frame_id ="camera_init";
 
+    // TUM format trajectory
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y%m%d%H%M");
+    // traj_save_name = "/root/catkin_ws/" + oss.str();
+
     /*** variables definition ***/
     int effect_feat_num = 0, frame_num = 0;
     double deltaT, deltaR, aver_time_consu = 0, aver_time_icp = 0, aver_time_match = 0, aver_time_incre = 0, aver_time_solve = 0, aver_time_const_H_time = 0;
@@ -793,12 +806,14 @@ int main(int argc, char** argv)
     /*** debug record ***/
     FILE *fp;
     string pos_log_dir = root_dir + "/Log/pos_log.txt";
+    traj_save_name = root_dir + "/Log/" + oss.str() + "_evo.txt";
     fp = fopen(pos_log_dir.c_str(),"w");
 
-    ofstream fout_pre, fout_out, fout_dbg;
+    ofstream fout_pre, fout_out, fout_dbg, traj_evo;
     fout_pre.open(DEBUG_FILE_DIR("mat_pre.txt"),ios::out);
     fout_out.open(DEBUG_FILE_DIR("mat_out.txt"),ios::out);
     fout_dbg.open(DEBUG_FILE_DIR("dbg.txt"),ios::out);
+    traj_evo.open(traj_save_name, ios::out);
     if (fout_pre && fout_out)
         cout << "~~~~"<<ROOT_DIR<<" file opened" << endl;
     else
@@ -927,6 +942,10 @@ int main(int argc, char** argv)
             geoQuat.w = state_point.rot.coeffs()[3];
 
             double t_update_end = omp_get_wtime();
+            
+            ros::Time current = ros::Time::now();
+            double f_time = static_cast<double>(current.sec) + static_cast<double>(current.nsec) / 1e9;
+            traj_evo<<fixed<< setprecision(7)<<f_time<<" "<<state_point.pos(0)<<" "<<state_point.pos(1)<<" "<<state_point.pos(2)<<" "<<geoQuat.x<<" "<<geoQuat.y<<" "<<geoQuat.z<<" "<<geoQuat.w<<endl;
 
             /******* Publish odometry *******/
             publish_odometry(pubOdomAftMapped);
@@ -992,6 +1011,7 @@ int main(int argc, char** argv)
 
     fout_out.close();
     fout_pre.close();
+    traj_evo.close();
 
     if (runtime_pos_log)
     {
